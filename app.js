@@ -814,24 +814,24 @@
   els.saveSharedBtn = $('saveSharedBtn');
   els.compareResult = $('compareResult');
 
-    els.addTestBtn.addEventListener('click', ()=>{
-      const name = els.newTestName.value.trim();
+    if(els.addTestBtn) els.addTestBtn.addEventListener('click', ()=>{
+      const name = (els.newTestName && els.newTestName.value) ? els.newTestName.value.trim() : '';
       addTest(name || `テスト ${testRecords.length+1}`);
-      els.newTestName.value = '';
+      if(els.newTestName) els.newTestName.value = '';
     });
-    els.renameTestBtn.addEventListener('click', renameCurrentTest);
-    els.deleteTestBtn.addEventListener('click', deleteCurrentTest);
+    if(els.renameTestBtn) els.renameTestBtn.addEventListener('click', renameCurrentTest);
+    if(els.deleteTestBtn) els.deleteTestBtn.addEventListener('click', deleteCurrentTest);
   if(els.testSelect) els.testSelect.addEventListener('change', e=>{ currentTestId = e.target.value; try{ localStorage.setItem(SELECTED_TEST_LS_KEY, currentTestId); }catch(e){} renderBoard(); });
-    els.addSubjectBtn.addEventListener('click', ()=>{
-      const name = els.newSubjectName.value.trim();
-      const score = els.newSubjectScore.value;
+    if(els.addSubjectBtn) els.addSubjectBtn.addEventListener('click', ()=>{
+      const name = (els.newSubjectName && els.newSubjectName.value) ? els.newSubjectName.value.trim() : '';
+      const score = els.newSubjectScore ? els.newSubjectScore.value : '';
       if(!name) return alert('教科名を入力してください');
       addSubjectToCurrent(name, score);
-      els.newSubjectName.value = ''; els.newSubjectScore.value = '';
+      if(els.newSubjectName) els.newSubjectName.value = ''; if(els.newSubjectScore) els.newSubjectScore.value = '';
     });
-    els.saveAsPrevBtn.addEventListener('click', saveAsPrevious);
-    els.exportBtn.addEventListener('click', exportJSON);
-    els.importInput.addEventListener('change', (e)=>{ const file = e.target.files[0]; if(file) importJSON(file); });
+    if(els.saveAsPrevBtn) els.saveAsPrevBtn.addEventListener('click', saveAsPrevious);
+    if(els.exportBtn) els.exportBtn.addEventListener('click', exportJSON);
+    if(els.importInput) els.importInput.addEventListener('change', (e)=>{ const file = e.target.files[0]; if(file) importJSON(file); });
     // share / compare handlers
     if(els.shareBtn) els.shareBtn.addEventListener('click', ()=>{ generateShareLink(); });
     if(els.copyShareBtn) els.copyShareBtn.addEventListener('click', copyShareLink);
