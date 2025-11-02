@@ -18,9 +18,7 @@
         <div class="version-label" id="versionLabel"></div>
         <div id="authControls" class="auth-controls">
           <span id="authUser" class="auth-user" style="display:none"></span>
-          <button id="signInBtn" class="btn">Google でサインイン</button>
-          <button id="signOutBtn" class="btn" style="display:none">サインアウト</button>
-          <button id="syncBtn" class="btn" style="display:none">クラウドと同期</button>
+          <a href="login.html" class="btn">アカウントでログイン</a>
         </div>
       </div>
     </header>
@@ -70,29 +68,7 @@
         </div>
       </div>
 
-      <div class="row small">
-        <label>短縮コードで共有（6桁）
-          <input id="shortCodeInput" placeholder="コードを入力（例: Ab12CD）" />
-        </label>
-        <div class="btn-group">
-          <button id="genShortCodeBtn" class="btn">コード生成</button>
-          <button id="applyShortCodeBtn" class="btn">コードで読み込み</button>
-        </div>
-        <small class="muted">※ 匿名で一時的に保存されます（短いコードで共有）。</small>
-      </div>
-
-      <div class="row small">
-        <label>アカウント（学籍番号 / 誕生日で登録）
-          <input id="acctIdInput" placeholder="学籍番号（例: 202312345）" />
-          <input id="acctBirthdayInput" placeholder="誕生日（YYYYMMDD）" />
-        </label>
-        <div class="btn-group">
-          <button id="registerAcctBtn" class="btn">登録</button>
-          <button id="loginAcctBtn" class="btn">ログイン</button>
-          <button id="logoutAcctBtn" class="btn" style="display:none">ログアウト</button>
-        </div>
-        <small class="muted">※ 誕生日はパスワード扱いになります。セキュリティに不安がある場合は Google 認証を利用してください。</small>
-      </div>
+      <!-- 学籍番号ログインは別ページに移動しました。ヘッダーの「アカウントでログイン」からログインしてください -->
 
       <div class="row small">
         <button id="shareBtn" class="btn">共有リンクを作成</button>

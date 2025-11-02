@@ -35,6 +35,25 @@
     compareResult: null
   };
 
+  // simple non-blocking notification (toast)
+  function notify(msg, level='info'){
+    try{
+      let el = document.getElementById('kl_toast');
+      if(!el){
+        el = document.createElement('div'); el.id = 'kl_toast';
+        el.style.position = 'fixed'; el.style.right = '12px'; el.style.top = '12px'; el.style.zIndex = 9999;
+        document.body.appendChild(el);
+      }
+      const item = document.createElement('div');
+      item.textContent = msg;
+      item.style.background = level==='error' ? '#fecaca' : '#e6fffa';
+      item.style.color = '#0f172a';
+      item.style.padding = '8px 12px'; item.style.marginTop = '8px'; item.style.borderRadius = '6px'; item.style.boxShadow = '0 2px 6px rgba(0,0,0,0.08)';
+      el.appendChild(item);
+      setTimeout(()=>{ item.style.opacity = '0'; setTimeout(()=>item.remove(),300); }, 3000);
+    }catch(e){ console.log('notify', msg); }
+  }
+
   // account id for custom auth (学籍番号ベース)
   let currentAccountId = null;
 
@@ -144,7 +163,7 @@
       localStorage.setItem(SELECTED_TEST_LS_KEY, currentTestId);
     }catch(e){ console.error('saveAsTemplate add test', e); }
 
-    alert('テンプレートを保存し、新しいテスト種類を追加しました');
+  notify('テンプレートを保存し、新しいテスト種類を追加しました');
   }
 
   function applyTemplate(templateId) {
@@ -219,7 +238,7 @@
   function copyTemplateShareLink(){
     const v = els.templateShareLink?.value;
     if(!v) return alert('先にテンプレートの共有リンクを作成してください');
-    navigator.clipboard?.writeText(v).then(()=> alert('テンプレートリンクをコピーしました'))
+    navigator.clipboard?.writeText(v).then(()=> notify('テンプレートリンクをコピーしました'))
       .catch(()=> alert('コピーに失敗しました。手動でコピーしてください'));
   }
 
@@ -237,7 +256,7 @@
 
   function downloadTemplateQR(){
     const img = els.templateQR;
-    if(!img || !img.src) return alert('QRが生成されていません');
+  if(!img || !img.src) return alert('QRが生成されていません');
     // download via opening a hidden link
     const a = document.createElement('a');
     a.href = img.src;
@@ -564,7 +583,7 @@
     const test = testRecords.find(t=>t.id===currentTestId);
     if(!test) return;
     test.previous = test.subjects.map(s => ({name:s.name, score: s.score}));
-    save(); renderBoard(); alert('現状を前回として保存しました');
+  save(); renderBoard(); notify('現状を前回として保存しました');
   }
 
   function exportJSON(){
@@ -599,7 +618,7 @@
   function copyShareLink(){
     const v = els.shareLink.value;
     if(!v) return alert('先に共有リンクを作成してください');
-    navigator.clipboard?.writeText(v).then(()=> alert('リンクをコピーしました'))
+    navigator.clipboard?.writeText(v).then(()=> notify('リンクをコピーしました'))
       .catch(()=> alert('コピーに失敗しました。手動でコピーしてください'));
   }
 
@@ -632,7 +651,7 @@
       // try base64 decode -> json
       const dec = b64_to_utf8(maybe);
       return JSON.parse(dec);
-    }catch(e){ console.error('loadSharedFromText', e); alert('共有データの形式が不正です'); return null; }
+  }catch(e){ console.error('loadSharedFromText', e); alert('共有データの形式が不正です'); return null; }
   }
 
   function renderComparison(shared){
@@ -674,7 +693,7 @@
     const name = prompt('保存するテスト名を入力してください', shared.name || '共有テスト');
     if(!name) return;
     const t = {id: uid(), name, subjects: shared.subjects || [], previous: shared.previous || []};
-    testRecords.push(t); save(); refreshTestSelect(); alert('共有データをテストとして保存しました');
+  testRecords.push(t); save(); refreshTestSelect(); notify('共有データをテストとして保存しました');
   }
 
   // Publish: open GitHub new issue page with payload in body (user will submit issue)
@@ -697,7 +716,7 @@
         const parsed = JSON.parse(fr.result);
         if(!Array.isArray(parsed)) throw new Error('形式が不正です');
         parsed.forEach(t => { if(!t.id) t.id = uid(); testRecords.push(t); });
-        save(); refreshTestSelect(); renderBoard(); alert('インポートが完了しました');
+  save(); refreshTestSelect(); renderBoard(); notify('インポートが完了しました');
       }catch(e){ alert('インポートに失敗しました: ' + e.message); }
     };
     fr.readAsText(file);
@@ -741,20 +760,15 @@
     els.showTemplateQRBtn = $('showTemplateQRBtn');
     els.downloadTemplateQRBtn = $('downloadTemplateQRBtn');
     els.templateQR = $('templateQR');
-    // short code UI
-    els.shortCodeInput = $('shortCodeInput');
-    els.genShortCodeBtn = $('genShortCodeBtn');
-    els.applyShortCodeBtn = $('applyShortCodeBtn');
+    // NOTE: short-code UI removed (we keep account-based sync only)
   els.acctIdInput = $('acctIdInput');
   els.acctBirthdayInput = $('acctBirthdayInput');
   els.registerAcctBtn = $('registerAcctBtn');
   els.loginAcctBtn = $('loginAcctBtn');
   els.logoutAcctBtn = $('logoutAcctBtn');
   // auth UI
-  els.signInBtn = $('signInBtn');
-  els.signOutBtn = $('signOutBtn');
+  // Google sign-in removed; keep authUser element for account display
   els.authUser = $('authUser');
-  els.syncBtn = $('syncBtn');
   // share / compare elements
   els.shareBtn = $('shareBtn');
   els.shareLink = $('shareLink');
@@ -834,51 +848,22 @@
       shareTemplate(templateId);
     });
 
-    // short code handlers
-    if(els.genShortCodeBtn) els.genShortCodeBtn.addEventListener('click', async ()=>{
-      try{
-        const code = await generateShortCodeForCurrent();
-        if(code) { prompt('このコードを共有先に教えてください（6桁）', code); }
-      }catch(e){ alert('コード生成に失敗しました: ' + e.message); }
-    });
-    if(els.applyShortCodeBtn) els.applyShortCodeBtn.addEventListener('click', async ()=>{
-      const code = els.shortCodeInput.value.trim();
-      if(!code) return alert('コードを入力してください');
-      try{
-        const ok = await loadByShortCode(code);
-        if(ok) alert('コードから読み込みました');
-      }catch(e){ alert('読み込みに失敗しました: ' + e.message); }
-    });
+    // short-code feature removed. Sharing is handled viaテンプレート/共有リンクまたはアカウント保存を使ってください。
 
     // account handlers (学籍番号 + 誕生日)
     if(els.registerAcctBtn) els.registerAcctBtn.addEventListener('click', async ()=>{
       const sid = els.acctIdInput.value.trim();
       const bday = els.acctBirthdayInput.value.trim();
       if(!sid || !bday) return alert('学籍番号と誕生日を入力してください');
-      try{ await registerAccount(sid, bday); alert('アカウントを作成しました。ログインして続けてください。'); }catch(e){ alert('登録に失敗しました: ' + e.message); }
+      try{ await registerAccount(sid, bday); notify('アカウントを作成しました。ログインして続けてください。'); }catch(e){ alert('登録に失敗しました: ' + e.message); }
     });
     if(els.loginAcctBtn) els.loginAcctBtn.addEventListener('click', async ()=>{
       const sid = els.acctIdInput.value.trim();
       const bday = els.acctBirthdayInput.value.trim();
       if(!sid || !bday) return alert('学籍番号と誕生日を入力してください');
-      try{ const ok = await loginAccount(sid, bday); if(ok) alert('ログインしました'); }catch(e){ alert('ログインに失敗しました: ' + e.message); }
+      try{ const ok = await loginAccount(sid, bday); if(ok) notify('ログインしました'); }catch(e){ alert('ログインに失敗しました: ' + e.message); }
     });
-    if(els.logoutAcctBtn) els.logoutAcctBtn.addEventListener('click', ()=>{ logoutAccount(); alert('ログアウトしました'); });
-
-    // auth handlers (may be hidden if firebase not configured)
-    if(els.signInBtn) els.signInBtn.addEventListener('click', ()=>{
-      signInWithGoogle();
-    });
-    if(els.signOutBtn) els.signOutBtn.addEventListener('click', ()=>{
-      signOut();
-    });
-    if(els.syncBtn) els.syncBtn.addEventListener('click', ()=>{
-      if(confirm('クラウドと同期します。クラウドに保存されているデータでローカルを上書きしますか？(OK = 上書き, Cancel = クラウドへ上書き)')){
-        loadFromCloud(true);
-      } else {
-        syncToCloud();
-      }
-    });
+    if(els.logoutAcctBtn) els.logoutAcctBtn.addEventListener('click', ()=>{ logoutAccount(); notify('ログアウトしました'); });
   }
 
   // --- Firebase (Google Auth) 初期化と同期ロジック ---
@@ -908,125 +893,12 @@
 
     try{
       firebaseApp = firebase.initializeApp(window.FIREBASE_CONFIG);
-      firebaseAuth = firebase.auth();
+      // Only initialize Firestore (we use custom account-based storage). Google sign-in / auth UI removed.
       firebaseDB = firebase.firestore();
-      // auth state
-      firebaseAuth.onAuthStateChanged(user => {
-        if(user){
-          // show signed in UI
-          if(els.authUser) { els.authUser.textContent = user.displayName || user.email || user.uid; els.authUser.style.display = 'inline-block'; }
-          if(els.signInBtn) els.signInBtn.style.display = 'none';
-          if(els.signOutBtn) els.signOutBtn.style.display = 'inline-block';
-          if(els.syncBtn) els.syncBtn.style.display = 'inline-block';
-          // 自動的にクラウドのデータを確認してマージ/上書きを促す
-          // 簡易実装: 既にクラウドにデータがあればユーザーに確認
-          firebaseDB.doc(`users/${user.uid}/data`).get().then(doc=>{
-            if(!doc.exists) return; // nothing
-            try{
-              const cloud = doc.data();
-              if(!cloud || !cloud.testRecords) return;
-              if(confirm('クラウド上に保存されたデータが見つかりました。クラウドのデータでローカルを上書きしますか？(OK = 上書き, Cancel = ローカル→クラウドへ上書き)')){
-                testRecords = cloud.testRecords;
-                if(testRecords.length) currentTestId = testRecords[0].id;
-                save(); refreshTestSelect(); renderBoard();
-              } else {
-                syncToCloud();
-              }
-            }catch(e){ console.error('parse cloud data', e); }
-          }).catch(e=>{ console.error('load cloud doc', e); });
-        } else {
-          // signed out
-          if(els.authUser) els.authUser.style.display = 'none';
-          if(els.signInBtn) els.signInBtn.style.display = 'inline-block';
-          if(els.signOutBtn) els.signOutBtn.style.display = 'none';
-          if(els.syncBtn) els.syncBtn.style.display = 'none';
-        }
-      });
     }catch(e){ console.error('init firebase error', e); }
   }
 
-  function signInWithGoogle(){
-    if(!firebaseAuth) return alert('Firebase が未設定です。firebase-config.js を配置してください');
-    const provider = new firebase.auth.GoogleAuthProvider();
-    firebaseAuth.signInWithPopup(provider).catch(e=>{ alert('サインインに失敗しました: ' + e.message); });
-  }
-
-  function signOut(){ if(!firebaseAuth) return; firebaseAuth.signOut(); }
-
-  // 現在のローカルデータをクラウドに保存
-  function syncToCloud(){
-    const user = firebaseAuth?.currentUser;
-    if(!user) return alert('先に Google でサインインしてください');
-    const payload = { testRecords };
-    firebaseDB.doc(`users/${user.uid}/data`).set(payload).then(()=>{
-      alert('クラウドへ保存しました');
-    }).catch(e=>{ alert('クラウド保存に失敗しました: ' + e.message); });
-  }
-
-  // クラウドからデータを読み込む。force=true ならローカルを上書き
-  function loadFromCloud(force){
-    const user = firebaseAuth?.currentUser;
-    if(!user) return alert('先に Google でサインインしてください');
-    firebaseDB.doc(`users/${user.uid}/data`).get().then(doc=>{
-      if(!doc.exists) return alert('クラウドにデータが見つかりません');
-      const cloud = doc.data();
-      if(!cloud || !cloud.testRecords) return alert('クラウドデータの形式が不正です');
-      if(force){
-        testRecords = cloud.testRecords; save(); refreshTestSelect(); renderBoard(); alert('クラウドのデータでローカルを上書きしました');
-      } else {
-        // 非強制はクラウド→マージ（クラウドにないテストを追加）
-        cloud.testRecords.forEach(ct => { if(!testRecords.find(t=>t.id===ct.id)) testRecords.push(ct); });
-        save(); refreshTestSelect(); renderBoard(); alert('クラウドのデータをマージしました');
-      }
-    }).catch(e=>{ alert('クラウド読み込みに失敗しました: ' + e.message); });
-  }
-
-  // --- Short code sharing (6桁) ---
-  function randomCode(len=6){
-    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'; // avoid ambiguous chars
-    let s='';
-    for(let i=0;i<len;i++) s += alphabet.charAt(Math.floor(Math.random()*alphabet.length));
-    return s;
-  }
-
-  async function ensureAuthForShortCode(){
-    if(!firebaseAuth) throw new Error('Firebase 未初期化');
-    if(firebaseAuth.currentUser) return firebaseAuth.currentUser;
-    // try anonymous sign-in
-    try{
-      const res = await firebaseAuth.signInAnonymously();
-      return res.user;
-    }catch(e){ throw new Error('匿名サインインに失敗しました: ' + e.message); }
-  }
-
-  async function generateShortCodeForCurrent(){
-    if(!firebaseDB) throw new Error('Firebase 未初期化');
-    const user = await ensureAuthForShortCode();
-    const payload = { testRecords, createdAt: new Date().toISOString(), ownerUid: user.uid };
-    // try generating unique code
-    for(let attempts=0; attempts<5; attempts++){
-      const code = randomCode(6);
-      const docRef = firebaseDB.collection('shortLinks').doc(code);
-      const snap = await docRef.get();
-      if(snap.exists) continue; // collision, rare
-      await docRef.set(payload);
-      return code;
-    }
-    throw new Error('コード生成ができませんでした。もう一度試してください。');
-  }
-
-  async function loadByShortCode(code){
-    if(!firebaseDB) throw new Error('Firebase 未初期化');
-    code = String(code).trim();
-    const docRef = firebaseDB.collection('shortLinks').doc(code);
-    const snap = await docRef.get();
-    if(!snap.exists) throw new Error('コードが見つかりません');
-    const data = snap.data();
-    if(!data || !data.testRecords) throw new Error('コードに関連するデータが不正です');
-    data.testRecords.forEach(tr => { if(!testRecords.find(t=>t.id===tr.id)) testRecords.push(tr); });
-    save(); refreshTestSelect(); renderBoard();
-    return true;
-  }
+  // Google sign-in and short-code sharing removed. We keep Firestore-backed account storage (学籍番号ベース).
 
   // ---- Account (学籍番号 + 誕生日) based auth (client-side hash) ----
   async function hashString(str){
@@ -1096,19 +968,19 @@
 
   async function saveToAccount(){
     if(!firebaseDB) throw new Error('Firebase 未初期化');
-    if(!currentAccountId) return alert('先に学籍番号でログインしてください');
-    await firebaseDB.collection('accounts').doc(currentAccountId).collection('meta').doc('data').set({ testRecords, savedAt: new Date().toISOString() });
-    alert('アカウントへ保存しました');
+  if(!currentAccountId) return alert('先に学籍番号でログインしてください');
+  await firebaseDB.collection('accounts').doc(currentAccountId).collection('meta').doc('data').set({ testRecords, savedAt: new Date().toISOString() });
+  notify('アカウントへ保存しました');
   }
 
   async function loadFromAccount(){
     if(!firebaseDB) throw new Error('Firebase 未初期化');
     if(!currentAccountId) return alert('先に学籍番号でログインしてください');
     const dataSnap = await firebaseDB.collection('accounts').doc(currentAccountId).collection('meta').doc('data').get();
-    if(!dataSnap.exists) return alert('アカウントに保存されたデータはありません');
-    const payload = dataSnap.data();
-    if(payload && payload.testRecords){ testRecords = payload.testRecords; if(testRecords.length) currentTestId = testRecords[0].id; save(); refreshTestSelect(); renderBoard(); alert('アカウントのデータを読み込みました'); }
-    else alert('アカウントデータの形式が不正です');
+  if(!dataSnap.exists) return alert('アカウントに保存されたデータはありません');
+  const payload = dataSnap.data();
+  if(payload && payload.testRecords){ testRecords = payload.testRecords; if(testRecords.length) currentTestId = testRecords[0].id; save(); refreshTestSelect(); renderBoard(); notify('アカウントのデータを読み込みました'); }
+  else alert('アカウントデータの形式が不正です');
   }
 
   // デバッグ用に同期関数と Firebase オブジェクトをグローバルに露出
@@ -1116,11 +988,8 @@
     if(typeof window !== 'undefined'){
       window._debug = window._debug || {};
       Object.assign(window._debug, {
-        syncToCloud: syncToCloud,
-        loadFromCloud: loadFromCloud,
         saveToAccount: saveToAccount,
         loadFromAccount: loadFromAccount,
-        firebaseAuth: () => firebaseAuth,
         firebaseDB: () => firebaseDB,
         firebaseApp: () => firebaseApp,
         refreshSubjectNameOptions: refreshSubjectNameOptions
@@ -1171,7 +1040,7 @@
         refreshTemplateSelect();
         // 読み込んだテンプレートの教科を教科候補に追加
         refreshSubjectNameOptions();
-        alert('テンプレートを読み込みました');
+  notify('テンプレートを読み込みました');
       }
     }
   });

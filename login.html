@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ログイン - テスト点数記録表</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="container">
+    <header class="site-header card">
+      <h1>ログイン</h1>
+    </header>
+
+    <section class="card">
+      <p>学籍番号と誕生日でログインします。</p>
+      <label>学籍番号<input id="acctId" placeholder="学籍番号 (例: 202312345)" /></label>
+      <label>誕生日<input id="acctBday" placeholder="誕生日 (YYYYMMDD)" /></label>
+      <div class="btn-group">
+        <button id="registerBtn" class="btn">登録</button>
+        <button id="loginBtn" class="btn">ログイン</button>
+      </div>
+      <div style="margin-top:12px"><a href="index.html" class="btn">戻る</a></div>
+      <div id="msg" style="margin-top:12px;color:#b91c1c"></div>
+    </section>
+
+  </main>
+
+  <script src="app.js" defer></script>
+  <script>
+    // Wait for app.js to expose methods on window._debug
+    function waitForDebug(cb){
+      if(window._debug && window._debug.registerAccount && window._debug.loginAccount) return cb();
+      setTimeout(()=>waitForDebug(cb), 200);
+    }
+    document.addEventListener('DOMContentLoaded', ()=>{
+      const idEl = document.getElementById('acctId');
+      const bEl = document.getElementById('acctBday');
+      const msg = document.getElementById('msg');
+      waitForDebug(()=>{
+        document.getElementById('registerBtn').addEventListener('click', async ()=>{
+          msg.textContent = '';
+          try{
+            await window._debug.registerAccount(idEl.value.trim(), bEl.value.trim());
+            msg.style.color = '#16a34a'; msg.textContent = '登録しました。index に戻ってログインしてください。';
+          }catch(e){ msg.style.color='#b91c1c'; msg.textContent = e.message; }
+        });
+        document.getElementById('loginBtn').addEventListener('click', async ()=>{
+          msg.textContent = '';
+          try{
+            const ok = await window._debug.loginAccount(idEl.value.trim(), bEl.value.trim());
+            if(ok){ window.location.href = 'index.html'; }
+          }catch(e){ msg.style.color='#b91c1c'; msg.textContent = e.message; }
+        });
+      });
+    });
+  </script>
+</body>
+</html>
