@@ -322,6 +322,29 @@
     }
     // persist selected test id
     try{ localStorage.setItem(SELECTED_TEST_LS_KEY, currentTestId); }catch(e){}
+
+    // render tile grid as well
+    renderTestsGrid();
+  }
+
+  // Render the responsive tests tile grid (#testsGrid) from testRecords
+  function renderTestsGrid(){
+    const grid = document.getElementById('testsGrid');
+    if(!grid) return;
+    grid.innerHTML = '';
+    if(!testRecords || !testRecords.length){
+      const empty = document.createElement('div'); empty.textContent = 'まだテストが登録されていません'; empty.style.padding='12px'; empty.style.color='var(--muted)'; grid.appendChild(empty); return;
+    }
+    testRecords.forEach(t => {
+      const tile = document.createElement('div');
+      tile.className = 'test-tile';
+      tile.dataset.id = t.id;
+      const name = document.createElement('div'); name.className = 'tile-name'; name.textContent = t.name;
+      const meta = document.createElement('div'); meta.className = 'tile-meta'; meta.textContent = `${(t.subjects||[]).length} 科目`;
+      tile.appendChild(name); tile.appendChild(meta);
+      tile.addEventListener('click', ()=>{ window.location.href = 'test.html?testId=' + encodeURIComponent(t.id); });
+      grid.appendChild(tile);
+    });
   }
 
   function renameCurrentTest() {
@@ -987,11 +1010,11 @@
   // start realtime listener for this account if possible
   try{ if(firebaseDB) startRealtimeSyncForAccount(currentAccountId); }catch(e){ console.warn('startRealtime after login failed', e); }
   // update UI (if elements exist on this page)
-  try{
-    if(els.loginLink) { els.loginLink.textContent = `acct:${currentAccountId}`; els.loginLink.href = 'login.html'; }
-    if(els.authUser) { els.authUser.textContent = `acct:${currentAccountId}`; els.authUser.style.display = 'inline-block'; }
-    if(els.logoutAcctBtn) els.logoutAcctBtn.style.display = 'inline-block';
-  }catch(e){}
+    try{
+      if(els.loginLink){ els.loginLink.style.display = 'none'; }
+      if(els.authUser) { els.authUser.textContent = `acct:${currentAccountId}`; els.authUser.style.display = 'inline-block'; }
+      if(els.logoutAcctBtn) els.logoutAcctBtn.style.display = 'inline-block';
+    }catch(e){}
   // automatically load account data (merge) without prompting
   try{ await autoLoadAccountData(); }catch(e){ console.warn('auto load after login failed', e); }
   // If this page doesn't have the main UI (e.g., login.html), defer UI rendering (index init will handle)
@@ -1015,7 +1038,7 @@
       if(els.logoutAcctBtn) els.logoutAcctBtn.style.display = 'inline-block';
       // update UI
       try{
-        if(els.loginLink) { els.loginLink.textContent = `acct:${currentAccountId}`; els.loginLink.href = 'login.html'; }
+        if(els.loginLink) els.loginLink.style.display = 'none';
         if(els.authUser) { els.authUser.textContent = `acct:${currentAccountId}`; els.authUser.style.display = 'inline-block'; }
         if(els.logoutAcctBtn) els.logoutAcctBtn.style.display = 'inline-block';
       }catch(e){}
@@ -1033,6 +1056,7 @@
     stopRealtimeSync();
     if(els.authUser) { els.authUser.textContent = ''; els.authUser.style.display = 'none'; }
     if(els.logoutAcctBtn) els.logoutAcctBtn.style.display = 'none';
+    if(els.loginLink) { els.loginLink.style.display = 'inline-block'; els.loginLink.textContent = 'アカウントでログイン'; }
   }
 
   async function saveToAccount(){

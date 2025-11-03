@@ -261,3 +261,13 @@ footer.tiny ul{
 @media(max-width:679px){ /* mobile */
   #testsGrid{grid-template-columns:repeat(1,1fr)}
 }
+
+/* Top actions bar (template/share/publish) */
+.top-actions{display:flex;gap:12px;align-items:center;flex-wrap:nowrap;overflow-x:auto;padding:12px}
+.top-actions .template-actions, .top-actions .share-actions, .top-actions .publish-actions{display:flex;gap:8px;align-items:center}
+.top-actions select, .top-actions input{padding:8px;border-radius:8px;border:1px solid var(--input-border);background:transparent}
+.top-actions .btn{height:38px;padding:6px 10px;display:inline-flex;align-items:center;justify-content:center}
+.top-actions .btn-group{display:flex;gap:6px}
+
+/* Ensure inputs don't wrap into vertical text; allow horizontal scroll on small screens */
+.top-actions input[readonly]{min-width:200px}
