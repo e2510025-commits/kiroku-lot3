@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>管理ダッシュボード — Kiroku Lot</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;margin:24px}
+    .card{border:1px solid #ddd;border-radius:8px;padding:16px;margin:12px 0}
+    textarea{width:100%;height:220px;font-family:monospace;white-space:pre;}
+    input[type=password]{font-size:16px;padding:8px;width:260px}
+    button{padding:8px 12px;margin:6px}
+    table{border-collapse:collapse;width:100%}
+    th,td{border:1px solid #eee;padding:6px;text-align:left}
+    .muted{color:#666;font-size:14px}
+    .hidden{display:none}
+    .danger{color:#a00}
+  </style>
+</head>
+<body>
+  <h1>管理者ダッシュボード</h1>
+  <div class="card" id="loginCard">
+    <p>パスワードを入力してログインしてください。</p>
+    <input id="pw" type="password" placeholder="パスワードを入力">
+    <button id="loginBtn">ログイン</button>
+    <p class="muted">※ フロントエンドのみの保護です。本番運用ではサーバー側認証を必ず実装してください。</p>
+  </div>
+
+  <div id="dashboard" class="hidden">
+    <div style="display:flex;gap:12px;align-items:center">
+      <h2>データ集計</h2>
+      <button id="refreshBtn">再取得</button>
+      <button id="downloadBtn">JSON をダウンロード</button>
+      <button id="logoutBtn">ログアウト</button>
+    </div>
+
+    <div class="card">
+      <h3>概要</h3>
+      <div id="summary"></div>
+    </div>
+
+    <div class="card">
+      <h3>localStorage（主要キー）</h3>
+      <div id="lsKnown"></div>
+    </div>
+
+    <div class="card">
+      <h3>localStorage（全て）</h3>
+      <div id="lsAll"></div>
+    </div>
+
+    <div class="card">
+      <h3>リポジトリ内ファイル</h3>
+      <p class="muted">サーバー経由で配信している場合のみ取得できます（ファイルが存在すれば表示）。</p>
+      <div id="repoFiles"></div>
+    </div>
+
+    <div class="card">
+      <h3>生データプレビュー / インポート</h3>
+      <p><input type="file" id="jsonImport"> <button id="importBtn">読み込んで表示</button></p>
+      <textarea id="raw" placeholder="ここに集約JSONが表示されます"></textarea>
+    </div>
+
+    <div class="card danger">
+      <h3>注意</h3>
+      <p>このページはフロントエンドのみでパスワード保護しています。パスワードはソース内に平文で保存されます。機密データを扱う場合は必ずサーバー側の認証・認可を導入してください。</p>
+    </div>
+  </div>
+
+<script>
+// -- 管理用パスワード（フロントエンド保護）：サーバー保護の代替ではありません
+const ADMIN_PASSWORD = 'cqqdx0ky';
+
+const knownKeys = [
+  'kiroku_lot_cards_v1',
+  'kiroku_lot_cards_results_v1',
+  'kiroku_lot_cards_results_history_v1',
+  'kiroku_lot_tests_v1',
+  'kiroku_lot_templates_v1'
+];
+
+function el(id){return document.getElementById(id)}
+
+function safeParse(s){try{return JSON.parse(s)}catch(e){return s}}
+
+async function fetchIfExists(path){
+  try{
+    const r = await fetch(path,{cache:'no-store'});
+    if(!r.ok) return null;
+    const t = await r.text();
+    try{return JSON.parse(t)}catch(e){return t}
+  }catch(e){return null}
+}
+
+async function collectData(){
+  const data = {collectedAt: new Date().toISOString(), localStorage:{}, files:{}};
+  for(let i=0;i<localStorage.length;i++){
+    const key = localStorage.key(i);
+    try{data.localStorage[key]=safeParse(localStorage.getItem(key))}catch(e){data.localStorage[key]=localStorage.getItem(key)}
+  }
+  // try fetch repo files (if served over HTTP)
+  const paths = ['/registry.json','/registry.json.bak','/firebase-config.js','/firebase-config.sample.js'];
+  for(const p of paths){
+    const v = await fetchIfExists(p);
+    if(v!==null) data.files[p]=v;
+  }
+  return data;
+}
+
+function renderSummary(data){
+  const ds = data.localStorage;
+  const knownCounts = {};
+  for(const k of knownKeys){ knownCounts[k]= ds[k] ? (Array.isArray(ds[k])? ds[k].length : (Object.keys(ds[k]||{}).length || (typeof ds[k] === 'string'? ds[k].length : 1))) : 0 }
+  const html = ['<ul>'];
+  for(const k of Object.keys(knownCounts)) html.push(`<li><strong>${k}</strong>: ${JSON.stringify(knownCounts[k])}</li>`);
+  html.push(`<li>localStorage 全キー数: ${Object.keys(ds).length}</li>`);
+  html.push('</ul>');
+  el('summary').innerHTML = html.join('\n');
+}
+
+function renderLsKnown(data){
+  const ds = data.localStorage; const container = el('lsKnown');
+  container.innerHTML = '';
+  for(const k of knownKeys){
+    const v = ds[k]===undefined? '<em>なし</em>' : `<pre>${escapeHtml(JSON.stringify(ds[k],null,2))}</pre>`;
+    const box = document.createElement('div'); box.className=''; box.innerHTML = `<h4>${k}</h4>${v}`; container.appendChild(box);
+  }
+}
+
+function renderLsAll(data){
+  const container = el('lsAll'); container.innerHTML='';
+  const table = document.createElement('table');
+  table.innerHTML = '<thead><tr><th>key</th><th>value (preview)</th></tr></thead>';
+  const tbody = document.createElement('tbody');
+  for(const k of Object.keys(data.localStorage).sort()){
+    const v = data.localStorage[k];
+    const s = typeof v === 'string' ? v : JSON.stringify(v);
+    const preview = escapeHtml((s||'').slice(0,200));
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${escapeHtml(k)}</td><td><code>${preview}${s.length>200? '…':''}</code></td>`;
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody); container.appendChild(table);
+}
+
+function renderFiles(data){
+  const container = el('repoFiles'); container.innerHTML='';
+  if(!data.files || Object.keys(data.files).length===0){ container.innerHTML = '<p class="muted">サーバー上に該当ファイルが見つかりませんでした（直接ファイルを配信している場合にのみ取得可）</p>'; return }
+  for(const k of Object.keys(data.files)){
+    const pre = document.createElement('pre'); pre.textContent = typeof data.files[k] === 'string' ? data.files[k] : JSON.stringify(data.files[k],null,2);
+    const box = document.createElement('div'); box.innerHTML = `<h4>${escapeHtml(k)}</h4>`; box.appendChild(pre); container.appendChild(box);
+  }
+}
+
+function escapeHtml(s){ if(typeof s !== 'string') s = String(s); return s.replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;', '"':'&quot;'}[c])); }
+
+async function refreshAndRender(){
+  el('raw').value = '読み込み中…';
+  const data = await collectData();
+  el('raw').value = JSON.stringify(data,null,2);
+  renderSummary(data); renderLsKnown(data); renderLsAll(data); renderFiles(data);
+  return data;
+}
+
+function downloadJson(obj){
+  const blob = new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'kiroku_lot_admin_export_'+(new Date().toISOString())+'.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+
+// -- イベント
+el('loginBtn').addEventListener('click', ()=>{
+  const v = el('pw').value || '';
+  if(v === ADMIN_PASSWORD){
+    document.getElementById('loginCard').classList.add('hidden');
+    document.getElementById('dashboard').classList.remove('hidden');
+    refreshAndRender();
+  }else{
+    alert('パスワードが違います');
+  }
+});
+
+el('logoutBtn').addEventListener('click', ()=>{ location.reload(); });
+el('refreshBtn').addEventListener('click', ()=>{ refreshAndRender(); });
+el('downloadBtn').addEventListener('click', async ()=>{ const d = await collectData(); downloadJson(d); });
+el('importBtn').addEventListener('click', ()=>{
+  const f = el('jsonImport').files[0];
+  if(!f){ alert('ファイルを選択してください'); return }
+  const r = new FileReader(); r.onload = e => { try{ const parsed = JSON.parse(e.target.result); el('raw').value = JSON.stringify(parsed,null,2); }catch(err){ alert('JSONとして読み込めません: '+err.message) } }; r.readAsText(f);
+});
+
+// allow Enter to submit password
+el('pw').addEventListener('keydown', (e)=>{ if(e.key === 'Enter'){ el('loginBtn').click(); } });
+
+</script>
+</body>
+</html>
