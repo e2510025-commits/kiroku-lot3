@@ -386,12 +386,8 @@
   const openResultsBtn = document.getElementById('openResultsBtn');
   function updateOpenResultsBtn(){
     if(!openResultsBtn) return;
-    // enable when there is at least one deck, when editing, or when a deck is selected
-    if(isEditing || currentDeckId || (store && Array.isArray(store.decks) && store.decks.length>0)){
-      openResultsBtn.disabled = false; openResultsBtn.title = 'このデッキの記録を見る';
-    } else {
-      openResultsBtn.disabled = true; openResultsBtn.title = '先にデッキを選択してください';
-    }
+    // Always allow navigating to the record (index) page from memorization mode
+    openResultsBtn.disabled = false; openResultsBtn.title = '点数記録ページに戻る';
   }
   // update when deck changes
   deckSelect.addEventListener('change', ()=>{ loadDeck(); updateOpenResultsBtn(); });
