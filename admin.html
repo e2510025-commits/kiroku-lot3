@@ -40,6 +40,11 @@
     </div>
 
     <div class="card">
+      <h3>ユーザー別集計</h3>
+      <div id="usersAggregate"></div>
+    </div>
+
+    <div class="card">
       <h3>localStorage（主要キー）</h3>
       <div id="lsKnown"></div>
     </div>
@@ -152,6 +157,85 @@ function renderFiles(data){
   }
 }
 
+function aggregateUserStats(data){
+  const dst = el('usersAggregate'); dst.innerHTML = '';
+  const ls = data.localStorage || {};
+  // candidate keys that may contain results/history
+  const candidateKeys = ['kiroku_lot_cards_results_history_v1','kiroku_lot_cards_results_v1','kiroku_lot_tests_v1'];
+  const entries = [];
+  for(const k of candidateKeys){
+    if(!(k in ls)) continue;
+    const raw = ls[k];
+    if(Array.isArray(raw)){
+      for(const it of raw) entries.push({source:k,record:it});
+    }else if(typeof raw === 'object' && raw !== null){
+      // if object is a map of timestamps or ids -> push values
+      for(const prop of Object.keys(raw)){
+        entries.push({source:k, record: raw[prop]});
+      }
+    }else{
+      // skip non-structured
+    }
+  }
+
+  if(entries.length === 0){ dst.innerHTML = '<p class="muted">集計可能な結果履歴が見つかりません。</p>'; return }
+
+  // normalize records and group by user-like key
+  const users = {};
+  function findUserField(r){
+    if(!r || typeof r !== 'object') return null;
+    const candidates = ['user','uid','userId','owner','author','name','displayName','email','createdBy'];
+    for(const c of candidates) if(c in r) return r[c];
+    // sometimes embedded
+    if(r.meta && typeof r.meta === 'object'){
+      for(const c of candidates) if(c in r.meta) return r.meta[c];
+    }
+    return null;
+  }
+  function findScoreField(r){
+    if(!r || typeof r !== 'object') return null;
+    const cands = ['score','percent','percentage','percentCorrect','correct','right'];
+    for(const c of cands) if(c in r) return r[c];
+    // derived fields
+    if('correct' in r && 'total' in r){
+      const c = Number(r.correct), t = Number(r.total); if(!isNaN(c) && !isNaN(t) && t>0) return Math.round(c / t * 100);
+    }
+    return null;
+  }
+
+  for(const it of entries){
+    const r = it.record;
+    const user = findUserField(r) || 'unknown';
+    const score = findScoreField(r);
+    const at = r && (r.at || r.time || r.createdAt || r.ts) ? (r.at||r.time||r.createdAt||r.ts) : null;
+    const ukey = String(user);
+    users[ukey] = users[ukey] || {count:0,scores:[],lastAt:null};
+    users[ukey].count += 1;
+    if(typeof score === 'number' || (typeof score === 'string' && !isNaN(Number(score)))){
+      users[ukey].scores.push(Number(score));
+    }
+    if(at){
+      const prev = users[ukey].lastAt ? new Date(users[ukey].lastAt) : null;
+      const cur = new Date(at);
+      if(!isNaN(cur.getTime()) && (!prev || cur > prev)) users[ukey].lastAt = cur.toISOString();
+    }
+  }
+
+  // render table
+  const table = document.createElement('table');
+  table.innerHTML = '<thead><tr><th>ユーザー</th><th>エントリ数</th><th>最新スコア</th><th>平均スコア</th><th>最終更新</th></tr></thead>';
+  const tb = document.createElement('tbody');
+  for(const u of Object.keys(users).sort()){
+    const info = users[u];
+    const latest = info.scores.length ? info.scores[info.scores.length-1] : '';
+    const avg = info.scores.length ? (Math.round(info.scores.reduce((a,b)=>a+b,0)/info.scores.length*100)/100) : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${escapeHtml(u)}</td><td>${info.count}</td><td>${escapeHtml(String(latest))}</td><td>${escapeHtml(String(avg))}</td><td>${escapeHtml(String(info.lastAt||''))}</td>`;
+    tb.appendChild(tr);
+  }
+  table.appendChild(tb); dst.appendChild(table);
+}
+
 function escapeHtml(s){ if(typeof s !== 'string') s = String(s); return s.replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;', '"':'&quot;'}[c])); }
 
 async function refreshAndRender(){
@@ -159,6 +243,7 @@ async function refreshAndRender(){
   const data = await collectData();
   el('raw').value = JSON.stringify(data,null,2);
   renderSummary(data); renderLsKnown(data); renderLsAll(data); renderFiles(data);
+  try{ aggregateUserStats(data); }catch(e){ console.error('aggregateUserStats error', e); }
   return data;
 }
 
