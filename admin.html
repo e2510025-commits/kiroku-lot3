@@ -45,6 +45,24 @@
     </div>
 
     <div class="card">
+      <h3>Ping（サイト健診）</h3>
+      <p class="muted">10秒ごとにサイトへリクエストを送り、応答時間と成功率を記録します。サーバーの CPU/メモリ は取得できないため、ここでは応答レイテンシを監視します。</p>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <button id="pingManual">今すぐ ping</button>
+        <button id="togglePing">停止</button>
+        <span id="pingStatus" class="muted"></span>
+      </div>
+      <canvas id="pingChart" width="700" height="120" style="width:100%;height:80px;border:1px solid #eee;border-radius:6px;"></canvas>
+      <div id="pingStats" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <h3>クライアント（ブラウザ）情報</h3>
+      <div id="clientStats"></div>
+      <p class="muted">※ サーバー側の CPU / メモリ 情報は取得できません。Netlify 等のホスティング環境でサーバー側メトリクスを得たい場合は外部モニタリング（Datadog, Prometheus 等）かビルド時のログ収集を検討してください。</p>
+    </div>
+
+    <div class="card">
       <h3>localStorage（主要キー）</h3>
       <div id="lsKnown"></div>
     </div>
@@ -246,6 +264,96 @@ async function refreshAndRender(){
   try{ aggregateUserStats(data); }catch(e){ console.error('aggregateUserStats error', e); }
   return data;
 }
+
+// ----------------------
+// Ping loop & chart
+// ----------------------
+const PING_KEY = 'admin_ping_history_v1';
+let pingHistory = [];
+let pingInterval = null;
+const PING_MAX = 120; // keep last N entries
+
+function loadPingHistory(){
+  try{ const v = localStorage.getItem(PING_KEY); if(v) pingHistory = JSON.parse(v); }catch(e){ pingHistory = []; }
+}
+function savePingHistory(){ try{ localStorage.setItem(PING_KEY, JSON.stringify(pingHistory.slice(-PING_MAX))); }catch(e){} }
+
+async function doPing(){
+  const statusEl = el('pingStatus');
+  const start = performance.now();
+  let ok=false, status=null, elapsed=null;
+  try{
+    // append timestamp to avoid cached responses
+    const url = window.location.origin + '/?healthcheck=' + Date.now();
+    const r = await fetch(url, {cache:'no-store', mode:'same-origin'});
+    elapsed = Math.round(performance.now() - start);
+    ok = r.ok; status = r.status;
+  }catch(e){
+    elapsed = null; ok = false; status = 'ERR';
+  }
+  const rec = {t: Date.now(), ms: elapsed, ok: !!ok, status};
+  pingHistory.push(rec); if(pingHistory.length>PING_MAX) pingHistory.shift(); savePingHistory(); renderPingChart(); renderPingStats();
+  statusEl.textContent = `last: ${elapsed!==null? elapsed+' ms' : 'failed'} (${status})`;
+}
+
+function startPingLoop(){ if(pingInterval) return; pingInterval = setInterval(doPing, 10000); el('togglePing').textContent='停止'; el('pingStatus').textContent='自動監視中'; }
+function stopPingLoop(){ if(!pingInterval) return; clearInterval(pingInterval); pingInterval=null; el('togglePing').textContent='開始'; el('pingStatus').textContent='停止中'; }
+
+function renderPingStats(){
+  const s = el('pingStats'); if(!s) return;
+  const okCount = pingHistory.filter(p=>p.ok).length; const total = pingHistory.length;
+  const avg = pingHistory.filter(p=>p.ms!==null).map(p=>p.ms).reduce((a,b)=>a+b,0) / Math.max(1,pingHistory.filter(p=>p.ms!==null).length);
+  s.innerHTML = `<strong>取得数:</strong> ${total}  <strong>成功:</strong> ${okCount}  <strong>成功率:</strong> ${total? Math.round(okCount/total*100) : 0}%  <strong>平均応答:</strong> ${isFinite(avg)? Math.round(avg)+' ms' : '-'}`;
+}
+
+function renderPingChart(){
+  const c = document.getElementById('pingChart'); if(!c) return; const ctx = c.getContext('2d');
+  const w = c.width; const h = c.height; ctx.clearRect(0,0,w,h);
+  const arr = pingHistory.slice(-100);
+  if(arr.length===0){ ctx.fillStyle='#f6f6f6'; ctx.fillRect(0,0,w,h); ctx.fillStyle='#666'; ctx.fillText('no data', 10,20); return }
+  const max = Math.max(200, ...arr.map(a=>a.ms||0));
+  // draw grid
+  ctx.fillStyle = '#fff'; ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle = '#eee'; ctx.lineWidth=1;
+  for(let y=0;y<5;y++){ const yy = (h/4)*y + 10; ctx.beginPath(); ctx.moveTo(0,yy); ctx.lineTo(w,yy); ctx.stroke(); }
+  // draw line
+  ctx.beginPath();
+  for(let i=0;i<arr.length;i++){
+    const x = i / (arr.length-1||1) * (w-20) + 10;
+    const v = arr[i].ms || 0; const y = h - 10 - (v / max) * (h-20);
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle = '#0b76ef'; ctx.lineWidth=2; ctx.stroke();
+  // dots
+  for(let i=0;i<arr.length;i++){
+    const x = i / (arr.length-1||1) * (w-20) + 10;
+    const v = arr[i].ms || 0; const y = h - 10 - (v / max) * (h-20);
+    ctx.beginPath(); ctx.arc(x,y,2,0,Math.PI*2); ctx.fillStyle = arr[i].ok? '#0b76ef' : '#e04b4b'; ctx.fill();
+  }
+}
+
+function renderClientStats(){
+  const elc = document.getElementById('clientStats'); if(!elc) return;
+  const parts = [];
+  parts.push(`<strong>userAgent:</strong> ${escapeHtml(navigator.userAgent)}`);
+  if('hardwareConcurrency' in navigator) parts.push(`<strong>CPU (logical cores):</strong> ${navigator.hardwareConcurrency}`);
+  if('deviceMemory' in navigator) parts.push(`<strong>deviceMemory (GB, approx):</strong> ${navigator.deviceMemory}`);
+  if('memory' in performance){
+    try{
+      const m = performance.memory;
+      parts.push(`<strong>JS heap:</strong> used ${Math.round(m.usedJSHeapSize/1024/1024)} MB / total ${Math.round(m.totalJSHeapSize/1024/1024)} MB (limit ${Math.round(m.jsHeapSizeLimit/1024/1024)} MB)`);
+    }catch(e){}
+  }
+  elc.innerHTML = '<div style="font-family:monospace;white-space:pre-wrap">' + parts.join('\n') + '</div>';
+}
+
+// wire ping controls
+loadPingHistory(); renderPingChart(); renderPingStats(); renderClientStats();
+el('pingManual').addEventListener('click', ()=>{ doPing(); });
+el('togglePing').addEventListener('click', ()=>{ if(pingInterval) stopPingLoop(); else startPingLoop(); });
+// start by default when admin dashboard is visible
+// if dashboard already visible, start loop
+if(!document.getElementById('dashboard').classList.contains('hidden')) startPingLoop();
 
 function downloadJson(obj){
   const blob = new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});
