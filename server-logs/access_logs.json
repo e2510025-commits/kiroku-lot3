@@ -383,5 +383,12 @@
     "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.8059.39 Safari/537.36",
     "ref": null,
     "accountId": null
+  },
+  {
+    "path": "/",
+    "ts": 1791435109308,
+    "ua": "Mozilla/5.0 (Linux; Android 16; SM-S931B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.8059.39 Mobile Safari/537.36",
+    "ref": null,
+    "accountId": null
   }
 ]
